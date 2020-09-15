@@ -36,6 +36,11 @@ class InsufficientBalance(Exception):
         Exception.__init__(self, f"Insufficient balance. Had {had}, needed {needed}")
 
 
+class InvalidParams(Exception):
+    def __init__(self, msg):
+        Exception.__init__(self, msg)
+
+
 def _load_abi(name: str) -> str:
     path = f"{os.path.dirname(os.path.abspath(__file__))}/assets/"
     with open(os.path.abspath(path + f"{name}.abi")) as f:
@@ -458,6 +463,61 @@ class Uniswap:
                 return self._token_to_token_swap_output(
                     input_token, qty, output_token, recipient
                 )
+
+    # ------ Extra function to make a trade, it more bottom layer function -----------------------------------------
+    @check_approval
+    def v2_swap_exact_tokens_for_tokens(self, amount_in, amount_out_min, path, to) -> HexBytes:
+        """
+        Make trade directly
+        1) amount_in
+        2) amount_out_min
+        3) path
+        4) to => the recipient
+        5) deadline
+        """
+        if self.version != 2:
+            raise InvalidParams('version: %s is not supported.' % self.version)
+        if len(path) < 2:
+            raise InvalidParams('path length: %s is smaller than 2' % len(path))
+        if path[0] == ETH_ADDRESS:
+            raise InvalidParams('eth is the starting path')
+        if path[len(path) - 1] == ETH_ADDRESS:
+            raise InvalidParams('eth is the ending path')
+
+        if to is None:
+            to = self.address
+
+        return self._build_and_send_tx(
+            self.router.functions.swapExactTokensForTokens(
+                amount_in,
+                amount_out_min,
+                path,
+                to,
+                self._deadline(),
+            ),
+        )
+
+    @check_approval
+    def v2_swap_tokens_for_exact_tokens(self, amount_out, amount_in_max, path, to):
+        if self.version != 2:
+            raise InvalidParams('version: %s is not supported.' % self.version)
+        if len(path) < 2:
+            raise InvalidParams('path length: %s is smaller than 2' % len(path))
+        if path[0] == ETH_ADDRESS:
+            raise InvalidParams('eth is the starting path')
+        if path[len(path) - 1] == ETH_ADDRESS:
+            raise InvalidParams('eth is the ending path')
+        if to is None:
+            to = self.address
+        return self._build_and_send_tx(
+            self.router.functions.swapTokensForExactTokens(
+                amount_out,
+                amount_in_max,
+                path,
+                to,
+                self._deadline(),
+            ),
+        )
 
     def _eth_to_token_swap_input(
         self, output_token: AddressLike, qty: Wei, recipient: Optional[AddressLike]
