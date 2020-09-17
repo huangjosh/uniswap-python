@@ -466,7 +466,7 @@ class Uniswap:
 
     # ------ Extra function to make a trade, it more bottom layer function -----------------------------------------
     # @check_approval
-    def v2_swap_exact_tokens_for_tokens(self, amount_in, amount_out_min, path, to) -> HexBytes:
+    def v2_swap_exact_tokens_for_tokens(self, amount_in, amount_out_min, path, to, gas_price: Wei =None) -> HexBytes:
         """
         Make trade directly
         1) amount_in
@@ -487,6 +487,11 @@ class Uniswap:
         if to is None:
             to = self.address
 
+        if gas_price is None:
+            tx_params = None
+        else:
+            tx_params = self._get_tx_params()
+            tx_params['gasPrice'] = gas_price
         return self._build_and_send_tx(
             self.router.functions.swapExactTokensForTokens(
                 amount_in,
@@ -495,10 +500,11 @@ class Uniswap:
                 to,
                 self._deadline(),
             ),
+            tx_params
         )
 
     # @check_approval
-    def v2_swap_tokens_for_exact_tokens(self, amount_out, amount_in_max, path, to):
+    def v2_swap_tokens_for_exact_tokens(self, amount_out, amount_in_max, path, to, gas_price: Wei = None):
         if self.version != 2:
             raise InvalidParams('version: %s is not supported.' % self.version)
         if len(path) < 2:
@@ -509,6 +515,12 @@ class Uniswap:
             raise InvalidParams('eth is the ending path')
         if to is None:
             to = self.address
+
+        if gas_price is None:
+            tx_params = None
+        else:
+            tx_params = self._get_tx_params()
+            tx_params['gasPrice'] = gas_price
         return self._build_and_send_tx(
             self.router.functions.swapTokensForExactTokens(
                 amount_out,
@@ -517,6 +529,7 @@ class Uniswap:
                 to,
                 self._deadline(),
             ),
+            tx_params=tx_params
         )
 
     def _eth_to_token_swap_input(
