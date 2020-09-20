@@ -465,7 +465,7 @@ class Uniswap:
                 )
 
     # ------ Extra function to make a trade, it more bottom layer function -----------------------------------------
-    # @check_approval
+    @check_approval
     def v2_swap_exact_tokens_for_tokens(self, amount_in, amount_out_min, path, to, gas_price: Wei =None) -> HexBytes:
         """
         Make trade directly
@@ -503,7 +503,7 @@ class Uniswap:
             tx_params
         )
 
-    # @check_approval
+    @check_approval
     def v2_swap_tokens_for_exact_tokens(self, amount_out, amount_in_max, path, to, gas_price: Wei = None):
         if self.version != 2:
             raise InvalidParams('version: %s is not supported.' % self.version)
@@ -531,6 +531,27 @@ class Uniswap:
             ),
             tx_params=tx_params
         )
+
+    @supports([2])
+    def v2_get_token_token_amountout_by_amountin(
+            self, amount_in: int, path: List[AddressLike]
+    ) -> int:
+        """Public price for token to token trades with an exact input."""
+        amount_out: int = self.router.functions.getAmountsOut(
+            amount_in, path
+        ).call()[-1]
+        return amount_out
+
+    @supports([2])
+    def v2_get_token_token_amountin_by_amountout(
+            self, amount_out: int, path: List[AddressLike],
+    ) -> int:
+        """Public price for token to token trades with an exact output."""
+        amount_in: int = self.router.functions.getAmountsIn(
+            amount_out, path
+        ).call()[0]
+        return amount_in
+
 
     def _eth_to_token_swap_input(
         self, output_token: AddressLike, qty: Wei, recipient: Optional[AddressLike]
