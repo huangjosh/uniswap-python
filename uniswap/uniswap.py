@@ -465,7 +465,7 @@ class Uniswap:
                 )
 
     # ------ Extra function to make a trade, it more bottom layer function -----------------------------------------
-    @check_approval
+    # @check_approval
     def v2_swap_exact_tokens_for_tokens(self, amount_in, amount_out_min, path, to, gas_price: Wei =None) -> HexBytes:
         """
         Make trade directly
@@ -503,7 +503,7 @@ class Uniswap:
             tx_params
         )
 
-    @check_approval
+    # @check_approval
     def v2_swap_tokens_for_exact_tokens(self, amount_out, amount_in_max, path, to, gas_price: Wei = None):
         if self.version != 2:
             raise InvalidParams('version: %s is not supported.' % self.version)
