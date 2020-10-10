@@ -483,9 +483,9 @@ class Uniswap:
             raise InvalidParams('eth is the starting path')
         if path[len(path) - 1] == ETH_ADDRESS:
             raise InvalidParams('eth is the ending path')
-
         if to is None:
             to = self.address
+        self.check_and_approve_max(path[0], gas_price)  # approve input
 
         if gas_price is None:
             tx_params = None
@@ -516,6 +516,8 @@ class Uniswap:
         if to is None:
             to = self.address
 
+        self.check_and_approve_max(path[0], gas_price)  # approve input
+
         if gas_price is None:
             tx_params = None
         else:
@@ -531,6 +533,67 @@ class Uniswap:
             ),
             tx_params=tx_params
         )
+
+    def v2_add_liquidity(self, token_a, token_b, amount_a_desired, amount_b_desired, amount_a_min, amount_b_min, to, gas_price: Wei = None):
+        """
+        If a pool for the passed tokens does not exists, one is created automatically
+        In this case amountADesired/amountBDesired tokens are added
+
+            amountADesired: The amount of tokenA to add as liquidity if the B/A price is <= amountBDesired/amountADesired (A depreciates).
+            amountBDesired: The amount of tokenB to add as liquidity if the A/B price is <= amountADesired/amountBDesired (B depreciates).
+            amountAMin: Bounds the extent to which the B/A price can go up before the transaction reverts. Must be <= amountADesired.
+            amountBMin: Bounds the extent to which the A/B price can go up before the transaction reverts. Must be <= amountBDesired.
+
+            return <amountA, amountB, liquidity>
+            amountA: amount of tokenA sent to pool
+            amountB: amount of tokenB sent to pool
+            liquidlity: the amount of liquidity tokens minted
+        """
+        if self.version != 2:
+            raise InvalidParams('version: %s is not supported.' % self.version)
+        if to is None:
+            to = self.address
+        self.check_and_approve_max(token_a, gas_price)  # approve input
+        self.check_and_approve_max(token_b, gas_price)  # approve input
+        tx_params = self._get_tx_params(gas_price=gas_price)
+        return self._build_and_send_tx(
+            self.router.functions.addLiquidity(
+                token_a,
+                token_b,
+                amount_a_desired,
+                amount_b_desired,
+                amount_a_min,
+                amount_b_min,
+                to,
+                self._deadline()
+            ),
+            tx_params=tx_params
+        )
+
+    # TODO: not yet tested
+    # def v2_remove_liquidity(self, token_a, token_b, liquidity, amount_a_min, amount_b_min, to, gas_price: Wei=None):
+    #     if self.version != 2:
+    #         raise InvalidParams('version: %s is not supported.' % self.version)
+    #     if to is None:
+    #         to = self.address
+    #     if gas_price is None:
+    #         tx_params = None
+    #     else:
+    #         tx_params = self._get_tx_params()
+    #         tx_params['gasPrice'] = gas_price
+    #
+    #     return self._build_and_send_tx(
+    #         self.router.functions.removeLiquidity(
+    #             token_a,
+    #             token_b,
+    #             liquidity,
+    #             amount_a_min,
+    #             amount_b_min,
+    #             to,
+    #             self._deadline()
+    #         ),
+    #         tx_params=tx_params
+    #     )
 
     @supports([2])
     def v2_get_token_token_amountout_by_amountin(
@@ -778,7 +841,7 @@ class Uniswap:
             )
 
     # ------ Approval Utils ------------------------------------------------------------
-    def approve(self, token: AddressLike, max_approval: Optional[int] = None) -> None:
+    def approve(self, token: AddressLike, max_approval: Optional[int] = None, gas_price: Wei=None) -> None:
         """Give an exchange/router max approval of a token."""
         max_approval = self.max_approval_int if not max_approval else max_approval
         contract_addr = (
@@ -790,7 +853,7 @@ class Uniswap:
             contract_addr, max_approval
         )
         logger.info(f"Approving {_addr_to_str(token)}...")
-        tx = self._build_and_send_tx(function)
+        tx = self._build_and_send_tx(function, self._get_tx_params(gas_price=gas_price))
         self.w3.eth.waitForTransactionReceipt(tx, timeout=6000)
 
         # Add extra sleep to let tx propogate correctly
@@ -812,6 +875,11 @@ class Uniswap:
             return True
         else:
             return False
+
+    def check_and_approve_max(self, token, gas_price:Wei=None):
+        is_approved = self._is_approved(token)
+        if not is_approved:
+            self.approve(token, gas_price=gas_price)
 
     # ------ Tx Utils ------------------------------------------------------------------
     def _deadline(self) -> int:
@@ -836,9 +904,9 @@ class Uniswap:
             logger.debug(f"nonce: {tx_params['nonce']}")
             self.last_nonce = Nonce(tx_params["nonce"] + 1)
 
-    def _get_tx_params(self, value: Wei = Wei(0), gas: Wei = Wei(250000)) -> TxParams:
+    def _get_tx_params(self, value: Wei = Wei(0), gas: Wei = Wei(4500000), gas_price: Wei=None) -> TxParams:
         """Get generic transaction parameters."""
-        return {
+        ret = {
             "from": _addr_to_str(self.address),
             "value": value,
             "gas": gas,
@@ -846,6 +914,9 @@ class Uniswap:
                 self.last_nonce, self.w3.eth.getTransactionCount(self.address)
             ),
         }
+        if gas_price is not None:
+            ret['gasPrice'] = gas_price
+        return ret
 
     # ------ Price Calculation Utils ---------------------------------------------------
     def _calculate_max_input_token(
