@@ -896,8 +896,10 @@ class Uniswap:
     # the original gas limit is 150,000, which is enough for normal orders
     # but may not enough for some large transactions such as create a uniswap pool by liquidity
     # hence we set gas limit to 4,500,000
-    def _get_tx_params(self, value: Wei = Wei(0), gas: Wei = Wei(4500000), gas_price: Wei=None) -> TxParams:
+    def _get_tx_params(self, value: Wei = Wei(0), gas: Wei = None, gas_price: Wei=None) -> TxParams:
         """Get generic transaction parameters."""
+        if gas is None:
+            gas = Wei(4500000)
         ret = {
             "from": _addr_to_str(self.address),
             "value": value,
